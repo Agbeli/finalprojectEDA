@@ -1,0 +1,412 @@
+---
+title: "Final Project"
+author: "Emmanuel Agbeli"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(LearnEDAfunctions)
+library(aplpack)
+library(gridExtra)
+library(car)
+```
+
+
+### Exploratory Analysis of Custom Datasets. 
+
+Dataset source: 
+
+The goal of the project is understand the consumer behaviour of different products living in Turkey. The dataset has different information of these customers. The dataset was fetch from kaggle
+[dataset](https://www.kaggle.com/datasets/umuttuygurr/e-commerce-customer-behavior-and-sales-analysis-tr?select=ecommerce_customer_behavior_dataset_v2.csv). 
+
+
+```{r,echo=TRUE}
+# read the dataset. 
+dataCommerce <- read.csv("ecommerce_customer_behavior_dataset_v2.csv")
+```
+
+
+- Generate new features from the whole dataset where we aggregate the numeric informations. We sample 1000 individuals information where the code snippet shows the implementation pipeline of these datasets. 
+
+
+```{r,echo=TRUE}
+# extract unique customer ids.
+df_customer <- dataCommerce %>%
+  group_by(Customer_ID) %>%
+  summarise(
+    first_date = min(Date),
+    last_date = max(Date),
+    total_spend = sum(Total_Amount),
+    total_quantity = sum(Quantity),
+    avg_unit_price = mean(Unit_Price),
+    total_discount = sum(Discount_Amount),
+    age = first(Age),  # assuming age is constant per customer
+    n_orders = n()
+  )
+
+# convert into actual date 
+df_customer <- df_customer %>%
+  mutate(
+    first_date = as.Date(first_date),
+    last_date = as.Date(last_date)
+  )
+
+df_customer <- df_customer %>%
+  mutate(
+    # Days between first and last purchase
+    customer_lifespan = as.numeric(last_date - first_date),
+    
+    # How recent is the customer (from dataset end date)
+    recency = as.numeric(max(last_date) - last_date),
+    
+    # Which month they started
+    start_month = month(first_date), 
+    
+    end_month = month(last_date)
+  )
+
+# sample information from the aggregated data. 
+sampled_data <- df_customer %>% 
+  sample_frac(500 / nrow(unique_customers))
+
+# view the first six rows 
+head(sampled_data)
+```
+
+
+
+This is an Ecommence dataset showing the behavior of customers with 18 variables and 17049 rows representing the number of records. In this project we explore the behavior of consumers.  Due to the large nature of the dataset we heavily rely on visual analysis instead numeric representation since this gives a better understanding the datasets. 
+
+```{r,echo=TRUE}
+# column ames 
+cat("Column names: \n")
+print(colnames(sampled_data))
+
+cat("\n data structure \n")
+print(str(sampled_data))
+```
+
+### Preprocessing of Datasets
+
+In this case, we will preprocess the datasets where we treat relevant columns of interest and also work  with relevant columns since we cannot work with all the 18 variables. 
+
+- Summary Statistics 
+
+This is summary statistics of the various columns where we have to convert the character columns into category. We have to regenerate new information from the dataframe and also extract unique customer IDs where we aggregate the consumer behaviours based on relevant features. 
+
+```{r,echo=TRUE}
+summary(sampled_data)
+```
+
+
+### Exploratory Analysis
+
+In the first we would like to explore the univariate analysis of the continuous information in the dataframe. This is to understand the symmetric nature of these features and also transformation required. 
+
+- Distribution of the total spending of customers 
+
+```{r,echo=TRUE}
+# Total spend
+sp1 <- ggplot(sampled_data, aes(x = total_spend)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = "Distr of Total Customer Spend", x = "Total Spend") +
+  theme_minimal()
+
+sp2 <- ggplot(sampled_data, aes(x = total_spend^(1/4))) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = "Transformation", x = "Total Spend") +
+  theme_minimal()
+grid.arrange(sp1, sp2, ncol = 2)
+```
+
+
+- Hinkley measure to assess the symmetric nature of the total spending of customers. We observed that distribution of spending is right-skewed and after we had to transform the features using fourth-root to make it symmetric as showed in the graph above. 
+
+```{r,echo=TRUE}
+hinkley(sampled_data$total_spend)
+hinkley(sampled_data$total_spend^(1/4))
+```
+```{r,echo=TRUE}
+# symmetric plot 
+symplot(sampled_data$total_spend^(1/4))
+```
+
+
+- five number analysis where we assess the total spending less than median **2815.81** and also for the transformed data. Check for outlier in the total spending
+
+
+```{r,echo=TRUE}
+fivenum(sampled_data$total_spend)
+fivenum(sampled_data$total_spend^(1/4))
+
+cat("stem and leaf plot of total spending")
+aplpack::stem.leaf(sampled_data$total_spend)
+```
+- Average Unit price of items purchased by customers. 
+
+From the representation of the distribution, we observed that the distribution is right-skewed one and needs to be reexpressed using the eighth-root into a symmetric distribution. 
+
+```{r,echo=TRUE}
+# Age
+age1 <- ggplot(df_customer, aes(x = avg_unit_price)) +
+  geom_histogram(bins = 20, fill = "coral", color = "white") +
+  labs(title = "Distribution of avg unit price", x = "avg unit price") +
+  theme_minimal()
+
+age2 <- ggplot(df_customer, aes(x = avg_unit_price^(1/8))) +
+  geom_histogram(bins = 20, fill = "coral", color = "white") +
+  labs(title = "Eighth-root of avgs", x = "avg unit price") +
+  theme_minimal()
+
+grid.arrange(age1, age2, ncol = 2)
+```
+
+This confirms the how transformation has impacted the symmetric nature of the distribution of the unit price of items purchased by the customers. 
+
+```{r,echo=TRUE}
+hinkley(sampled_data$avg_unit_price)
+hinkley(sampled_data$avg_unit_price^(1/8))
+```
+
+
+```{r,echo=TRUE}
+symplot(sampled_data$avg_unit_price^(1/8))
+```
+
+
+We went further to compute for the letter values of the raw data and transformed datasets as showed in the table below. 
+
+```{r,echo=TRUE}
+lval(sampled_data$avg_unit_price)
+lval(sampled_data$avg_unit_price^(1/8))
+```
+
+
+
+
+- We also consider the distribution of the total discount offered to customer we observed that the distribution is right-skewed one, so we have to readjust to make it look symmetric in nature. Though after transformation the graph looks a little bit symmetric with an extreme value. 
+
+```{r,echo=TRUE}
+# Age
+age1 <- ggplot(df_customer, aes(x = total_discount)) +
+  geom_histogram(bins = 20, fill = "coral", color = "white") +
+  labs(title = "Distribution of total discount", x = "total discount") +
+  theme_minimal()
+
+age2 <- ggplot(df_customer, aes(x = log10(total_discount +1))) +
+  geom_histogram(bins = 20, fill = "coral", color = "white") +
+  labs(title = "log10 of total discount", x = "total discount") +
+  theme_minimal()
+
+grid.arrange(age1, age2, ncol = 2)
+```
+
+```{r,echo=TRUE}
+hinkley(sampled_data$total_discount)
+hinkley(log10(sampled_data$total_discount + 1))
+```
+
+
+The tables shows the measure of various letter values from the previous analysis. 
+
+```{r,echo=TRUE}
+lval(sampled_data$total_discount)
+lval(log10(sampled_data$total_discount + 1))
+```
+
+
+- Bivariate Analysis (Batch Analysis)
+
+
+Next we consider a bivariate analysis of the features previously analysed considering the end month of the customer in other words the last purchased made based on months. 
+
+- The total amount spend over the end month?
+
+We investigated the distribution of total spending over the months using boxplot to indicate the spread over the end month of purchase by customers. We can see that there were more purchase extreme spending made on march compared to the rest. 
+
+```{r,echo=TRUE}
+
+sampled_data <- sampled_data %>%
+  mutate(
+    start_month = month(first_date, label = TRUE, abbr = TRUE),  #Feb,Mar...
+    end_month = month(last_date, label = TRUE, abbr = TRUE) 
+  )
+
+ggplot(sampled_data, aes(x = factor(end_month), y = total_quantity)) +
+  geom_boxplot(fill = "tomato", alpha = 0.7) +
+  labs(
+    title = "Total Quantity Purchased by End Month",
+    x = "End Month",
+    y = "Total Quantity"
+  ) +
+  theme_minimal()
+```
+
+
+```{r,echo=TRUE}
+spread_level_plot(sampled_data, total_quantity, end_month)
+```
+
+
+```{r,echo=TRUE}
+# transformed features 
+ggplot(sampled_data, aes(x = factor(end_month), y = total_quantity^(1/4))) +
+  geom_boxplot(fill = "tomato", alpha = 0.7) +
+  labs(
+    title = "Total Quantity Purchased by End Month",
+    x = "End Month",
+    y = "Total Quantity"
+  ) +
+  theme_minimal()
+```
+
+```{r,echo=TRUE}
+spread_level_plot(sampled_data, total_quantity^(1/4), end_month)
+```
+
+
+
+- There is an uneven distribution of avg unit price over the end month of purchase by customers as indicated in the plot. There were a lot outliers in some months as showed in the figure below.  
+
+
+```{r,echo=TRUE}
+ggplot(sampled_data, aes(x = factor(end_month), y = avg_unit_price)) +
+  geom_boxplot(fill = "tomato", alpha = 0.7) +
+  labs(
+    title = "Avg unit price over the End Month",
+    x = "End Month",
+    y = "Avg unit price"
+  ) +
+  theme_minimal()
+```
+- There is relationship between the spread and level avg unit price of items purchased by customers. 
+
+```{r,echo=TRUE}
+spread_level_plot(sampled_data,  avg_unit_price, end_month)
+```
+
+_ Reexpression of the raw datasets for avg unit price into eighth-root and we could clearly analyse the spread of the data over the months. 
+
+
+```{r,echo=TRUE}
+ggplot(sampled_data, aes(x = factor(end_month), y = avg_unit_price^(1/8))) +
+  geom_boxplot(fill = "tomato", alpha = 0.7) +
+  labs(
+    title = "Avg unit price over the End Month",
+    x = "End Month",
+    y = "Avg unit price"
+  ) +
+  theme_minimal()
+```
+
+- Check for spread and level plot of the avg unit price of items purchased by customers. We could see there is an independence between spread and level of eighth-root of the avg unit price of the items. 
+
+```{r,echo=TRUE}
+spread_level_plot(sampled_data,  avg_unit_price^(1/8), end_month)
+```
+
+
+From our conclusion, we observed that it is expediates to reexpressed the dataset from the raw form into another representation for the purpose of symmetric measures and also avoid the problem of skewness in the data. 
+
+
+#### Fitting and plotting
+
+In this next phase of our analysis, we will consider the total spending of customers to unit price of items. We want to investigate if the total spending of the customers are affected by the unit price of items. Since we have alread investigated the distribution these features we will used the reexpressed features of these information to do our fitting. 
+
+We will perform comparative analysis of different fitting methodologies as explained in the class. 
+
+- linear fitting: 
+
+We will perform linear fitting of the data. 
+
+```{r,echo=TRUE}
+# summary of the fitting 
+forthroot = sampled_data$total_spend^(1/4)
+eighthroot = sampled_data$avg_unit_price^(1/8)
+lm(forthroot ~ eighthroot)
+```
+
+
+```{r,echo=TRUE}
+ggplot(sampled_data,
+       aes(total_spend^(1/4),avg_unit_price^(1/8))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("unit price(1/8)") + ylab("total spend (1/4)") +
+  ggtitle("Relationship between total spend vs unit price")
+
+```
+- Residual plot of the fitted model. The residuals are non-constant based on the graph 
+
+
+```{r,echo=TRUE}
+sampled_data %>% 
+  mutate(FIT = 7.569 * 
+    (avg_unit_price^(1/8)) + -8.267,
+    Residual =  total_spend^(1/4) - FIT) %>% 
+  ggplot(aes(avg_unit_price^(1/8), Residual)) + 
+  geom_point() +
+  geom_hline(yintercept = 0, color = "red") +
+  xlab("unit price") + 
+  ggtitle("Residual plot")
+```
+
+- Nonlinear fit was made 
+
+```{r,echo=TRUE}
+ggplot(sampled_data,
+       aes(total_spend^(1/4),avg_unit_price^(1/8))) +
+  geom_point() +
+  geom_smooth(method = "loess",span =0.5, se = FALSE) +
+  xlab("unit price(1/8)") + ylab("total spend (1/4)") +
+  ggtitle("Relationship between total spend vs unit price")
+
+```
+
+- The resistant fit shows a slight representation compared to the least-squared fit. 
+
+```{r,echo=TRUE}
+sampled_data <- sampled_data %>%
+  mutate(
+    forthroot = total_spend^(1/4),
+    eighthroot = avg_unit_price^(1/8)
+  )
+myfit <- rline(forthroot ~ eighthroot,data.frame(sampled_data))
+sampled_data<- 
+  mutate(sampled_data,
+         FIT = myfit$a + myfit$b * (eighthroot - myfit$xC),
+         RESIDUAL = forthroot - FIT)  
+select(sampled_data, FIT, RESIDUAL)
+
+ggplot(sampled_data, aes(eighthroot, RESIDUAL)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "red") + 
+  ggtitle("Residual of Resistant fit")
+```
+
+
+```{r,echo=TRUE}
+myfit
+```
+
+
+### Smoothing Method 
+
+
+```{r,echo=TRUE}
+
+```
+
+
+- Visualization of the smooth
+
+```{r,echo=TRUE}
+
+ggplot(sampled_data, aes(eighthroot, forthroot)) +
+  geom_point() +
+  geom_line(aes(eighthroot, smooth.3RSS), col="red")
+```
