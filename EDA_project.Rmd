@@ -71,7 +71,7 @@ df_customer <- df_customer %>%
 
 # sample information from the aggregated data. 
 sampled_data <- df_customer %>% 
-  sample_frac(500 / nrow(unique_customers))
+  sample_frac(500 / nrow(df_customer))
 
 # view the first six rows 
 head(sampled_data)
@@ -269,7 +269,9 @@ spread_level_plot(sampled_data, total_quantity^(1/4), end_month)
 ```
 
 
-
+```{r,echo=TRUE}
+#spread_level_plot(sampled_data, log(total_quantity,0.09), end_month)
+```
 - There is an uneven distribution of avg unit price over the end month of purchase by customers as indicated in the plot. There were a lot outliers in some months as showed in the figure below.  
 
 
@@ -406,7 +408,4 @@ myfit
 
 ```{r,echo=TRUE}
 
-ggplot(sampled_data, aes(eighthroot, forthroot)) +
-  geom_point() +
-  geom_line(aes(eighthroot, smooth.3RSS), col="red")
 ```
